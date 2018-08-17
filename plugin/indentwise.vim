@@ -40,6 +40,7 @@ set cpo&vim
 " Global Options {{{1
 " ============================================================================
 let g:indentwise_equal_indent_skips_contiguous = get(g:, 'indentwise_equal_indent_skips_contiguous', 1)
+let g:indentwise_skip_prefix = get(g:, 'indentwise_skip_prefix', 0)
 " 1}}}
 
 " Support Code {{{1
@@ -57,6 +58,17 @@ else
     endfunc
 endif
 " 2}}}
+
+" _indent {{{2
+function! s:_indent(lnum)
+    if g:indentwise_skip_prefix == 0
+        return indent(a:lnum)
+    endif
+
+    let skip = g:indentwise_skip_prefix
+    return match(getline(a:lnum)[skip:], '\S')
+endfunction
+" }}}2
 
 " _get_line_of_relative_indent {{{2
 " ==============================================================================
@@ -103,12 +115,12 @@ function! s:_get_line_of_relative_indent(first_line_of_current_range, last_line_
     let start_line = current_line
     let last_accepted_line = current_line
     let last_line_of_buffer = line('$')
-    let current_indent = indent(current_line)
+    let current_indent = s:_indent(current_line)
     let indent_depth_changed = 0
     let num_reps = a:count
     while (current_line > 0 && current_line <= last_line_of_buffer && num_reps > 0)
         let current_line = current_line + stepvalue
-        let candidate_line_indent = indent(current_line)
+        let candidate_line_indent = s:_indent(current_line)
         let accept_line = 0
 
         if treat_whitespace_as_blank
@@ -168,12 +180,12 @@ function! <SID>_get_line_of_absolute_indent(fwd, exclusive) range
     endif
     let skip_blanks = get(b:, "indentwise_skip_blanks", get(g:, "indentwise_skip_blanks", 1))
     let lastline = line('$')
-    let current_indent = indent(current_line)
+    let current_indent = s:_indent(current_line)
     let target_indent = v:count * s:sw()
     let num_reps = 1
     while (current_line > 0 && current_line <= lastline && num_reps > 0)
         let current_line = current_line + stepvalue
-        let candidate_line_indent = indent(current_line)
+        let candidate_line_indent = s:_indent(current_line)
         if (candidate_line_indent == target_indent)
             if (! skip_blanks || strlen(getline(current_line)) > 0)
                 let num_reps = num_reps - 1
@@ -218,6 +230,10 @@ endfunction
 "   ">": Go to line with the larger indentation depth;
 "   ">=": Go to line with the greater than or equal indentation depth;
 "   "<=": Go to line with the lesser than or equal indentation depth;
+"
+" Sample:
+"   move_to_indent_depth(1, "==", 0, "n")
+"
 function! <SID>move_to_indent_depth(fwd, target_indent_depth, exclusive, vim_mode) range
     let current_column = col('.')
     let target_line = s:_get_line_of_relative_indent(a:firstline, a:lastline, a:fwd, a:target_indent_depth, -1, a:exclusive, v:count1)
@@ -269,9 +285,9 @@ function! <SID>move_to_indent_block_scope_boundary(fwd, vim_mode) range
     endif
     while nreps > 0
         let line_of_lowest_indent = operational_first_line
-        let reference_indent = indent(line_of_lowest_indent)
+        let reference_indent = s:_indent(line_of_lowest_indent)
         for lnr in range(operational_first_line, operational_last_line)
-            let i = indent(lnr)
+            let i = s:_indent(lnr)
             if i < reference_indent
                 let line_of_lowest_indent = lnr
                 let reference_indent = i
@@ -295,7 +311,7 @@ function! <SID>move_to_indent_block_scope_boundary(fwd, vim_mode) range
             let break_on_equal_indent = 0
             while (current_line > 0 && current_line <= last_line_of_buffer)
                 let subsequent_line = current_line + stepvalue
-                let subsequent_line_indent = indent(subsequent_line)
+                let subsequent_line_indent = s:_indent(subsequent_line)
                 if (a:fwd && subsequent_line_indent != reference_indent)
                     " When going forward (only), any line of 0 indent encountered
                     " after encountering lines of greater indent are considered the
